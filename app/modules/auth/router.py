@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -11,17 +11,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def register(data: SignupRequest, db: AsyncSession = Depends(get_db)):
     try:
         token = await register_user(data, db)
+        return token
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
-    return token
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post('/signin', response_model=Token)
 async def login(data: SignInRequest, db: AsyncSession = Depends(get_db)):
     try:
         token = await authenticate_user(data, db)
+        return token
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
-    return token
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
 @router.post('/refresh', response_model=AccessTokenResponse)
 async def refresh_token(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):

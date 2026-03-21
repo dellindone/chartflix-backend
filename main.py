@@ -1,45 +1,28 @@
 import logging
 import sys
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# Setup logging early
+from app.db.base import Base
+from app.db.engine import engine
+from app.modules.auth.router import router as auth_router
+from app.modules.user.router import router as user_router
+
+# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
-try:
-    logger.info("Starting app imports...")
-    
-    from app.db.base import Base
-    logger.info("✓ Imported Base")
-    
-    from app.db.engine import engine
-    logger.info("✓ Imported engine")
-    
-    from app.modules.auth.router import router as auth_router
-    logger.info("✓ Imported auth_router")
-    
-    from app.modules.user.router import router as user_router
-    logger.info("✓ Imported user_router")
-
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    
-    logger.info("All imports successful, creating FastAPI app...")
-    
-except Exception as e:
-    logger.error(f"Import error: {e}", exc_info=True)
-    raise
-
+# Create FastAPI app
 app = FastAPI(
     title="Chartflix Backend API",
     description="API for Chartflix, a Stock Alert tracking application"
 )
 
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,17 +31,15 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+# Health check endpoint
 @app.get("/health")
 async def health():
-    """Health check endpoint - quick response"""
     return {"status": "healthy"}
 
+# Startup event
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting up...")
-    # Skip table creation on startup to avoid pgbouncer prepared statement issues
-    # Tables should be created via migrations or manual setup
-    logger.info("Startup complete")
+    logger.info("Application starting up...")
 
 app.include_router(auth_router)
 app.include_router(user_router)

@@ -16,17 +16,15 @@ if engine:
     )
 else:
     SessionFactory = None
-    logger.warning("Database engine is not initialized, sessions will not work")
 
-# dependency
+# Get database session
 async def get_db():
     if not SessionFactory:
-        logger.error("Attempted to get_db but SessionFactory is None")
         raise HTTPException(status_code=500, detail="Database not configured")
     
-    try:
-        async with SessionFactory() as session:
+    async with SessionFactory() as session:
+        try:
             yield session
-    except Exception as e:
-        logger.error(f"Database session error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Database error")
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+            raise HTTPException(status_code=500, detail="Database error")
