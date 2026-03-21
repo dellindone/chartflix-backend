@@ -1,14 +1,39 @@
-from app.db.base import Base
-from app.db.engine import engine
-from app.modules.auth.router import router as auth_router
-from app.modules.user.router import router as user_router
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import logging
+import sys
 
-logging.basicConfig(level=logging.INFO)
+# Setup logging early
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
+
+try:
+    logger.info("Starting app imports...")
+    
+    from app.db.base import Base
+    logger.info("✓ Imported Base")
+    
+    from app.db.engine import engine
+    logger.info("✓ Imported engine")
+    
+    from app.modules.auth.router import router as auth_router
+    logger.info("✓ Imported auth_router")
+    
+    from app.modules.user.router import router as user_router
+    logger.info("✓ Imported user_router")
+
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    
+    logger.info("All imports successful, creating FastAPI app...")
+    
+except Exception as e:
+    logger.error(f"Import error: {e}", exc_info=True)
+    raise
 
 app = FastAPI(
     title="Chartflix Backend API",
@@ -38,8 +63,10 @@ async def startup_event():
         else:
             logger.warning("Database engine not initialized")
     except Exception as e:
-        logger.error(f"Startup error: {e}")
+        logger.error(f"Startup error: {e}", exc_info=True)
         # Don't fail startup, let the app start anyway
 
 app.include_router(auth_router)
 app.include_router(user_router)
+
+logger.info("FastAPI app created successfully")
