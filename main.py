@@ -49,8 +49,23 @@ app.add_middleware(
 )
 
 @app.get("/health")
-def health():
-    return {"status": "healthy"}
+async def health():
+    """Health check endpoint"""
+    response = {"status": "healthy", "database": "unknown"}
+    
+    if engine:
+        try:
+            # Quick test to see if database is reachable
+            async with engine.begin() as conn:
+                await conn.execute("SELECT 1")
+            response["database"] = "connected"
+        except Exception as e:
+            response["database"] = f"error: {str(e)}"
+            response["status"] = "degraded"
+    else:
+        response["database"] = "not_configured"
+    
+    return response
 
 @app.on_event("startup")
 async def startup_event():
