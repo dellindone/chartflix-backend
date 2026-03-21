@@ -10,8 +10,13 @@ try:
         engine = create_async_engine(
             DATABASE_URL,
             connect_args={
-                "statement_cache_size": 0
-            }
+                "statement_cache_size": 0,
+                "max_cached_statement_lifetime": 0,
+                "max_cacheable_statement_size": 0,
+            },
+            pool_size=1,
+            max_overflow=0,
+            echo=False
         )
         logger.info("Database engine created successfully")
     else:
