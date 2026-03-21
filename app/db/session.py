@@ -21,7 +21,12 @@ else:
 # dependency
 async def get_db():
     if not SessionFactory:
+        logger.error("Attempted to get_db but SessionFactory is None")
         raise HTTPException(status_code=500, detail="Database not configured")
     
-    async with SessionFactory() as session:
-        yield session
+    try:
+        async with SessionFactory() as session:
+            yield session
+    except Exception as e:
+        logger.error(f"Database session error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error")
