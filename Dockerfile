@@ -1,9 +1,9 @@
 # Use lightweight Python image
 FROM python:3.10-slim
 
-# Force rebuild by adding timestamp
-ARG BUILDKIT_INLINE_CACHE=1
-RUN echo "Build timestamp: $(date)"
+# Force clean rebuild - add dynamic marker
+ARG BUILD_DATE
+ENV BUILD_DATE=${BUILD_DATE}
 
 # Set working directory
 WORKDIR /app
@@ -20,8 +20,10 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first (for caching)
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies with verbose output
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip list
 
 # Copy project
 COPY . .
