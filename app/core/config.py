@@ -4,7 +4,7 @@ import os
 load_dotenv()
 
 HOST = os.getenv("HOST")
-PORT = int(os.getenv("PORT"))
+PORT = int(os.getenv("DB_PORT"))
 USERNAME = os.getenv("USERNAME")
 PASSWORD = os.getenv("PASSWORD")
 DATABASE = os.getenv("DATABASE")
