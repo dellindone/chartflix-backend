@@ -1,6 +1,10 @@
 # Use lightweight Python image
 FROM python:3.10-slim
 
+# Force rebuild by adding timestamp
+ARG BUILDKIT_INLINE_CACHE=1
+RUN echo "Build timestamp: $(date)"
+
 # Set working directory
 WORKDIR /app
 
