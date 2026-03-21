@@ -31,9 +31,12 @@ def health():
 async def startup_event():
     logger.info("Starting up...")
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created/verified")
+        if engine:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database tables created/verified")
+        else:
+            logger.warning("Database engine not initialized")
     except Exception as e:
         logger.error(f"Startup error: {e}")
         # Don't fail startup, let the app start anyway
