@@ -56,16 +56,9 @@ async def health():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up...")
-    try:
-        if engine:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database tables created/verified")
-        else:
-            logger.warning("Database engine not initialized")
-    except Exception as e:
-        logger.error(f"Startup error: {e}", exc_info=True)
-        # Don't fail startup, let the app start anyway
+    # Skip table creation on startup to avoid pgbouncer prepared statement issues
+    # Tables should be created via migrations or manual setup
+    logger.info("Startup complete")
 
 app.include_router(auth_router)
 app.include_router(user_router)
