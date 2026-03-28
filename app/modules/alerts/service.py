@@ -19,7 +19,7 @@ class AlertService:
         alert = await alert_repo.get_by_id(db, alert_id)
         if not alert: raise NotFoundException("Alert not found")
         if alert.status != AlertStatus.ACTIVE:
-            if current_user.role != User.role:
+            if current_user.role == UserRole.USER:
                 raise NotFoundException("Alert not found")
         return alert
     

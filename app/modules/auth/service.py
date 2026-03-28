@@ -40,7 +40,7 @@ class AuthService:
         await auth_repo.delete_refresh_token(db, refresh_token)
 
     async def refresh(self, db: AsyncSession, refresh_token: str) -> tuple[str, str]:
-        token_data = auth_repo.get_refresh_token(db, refresh_token)
+        token_data = await auth_repo.get_refresh_token(db, refresh_token)
         if not token_data:
             raise UnauthorizedException("Invalid refresh token")
         

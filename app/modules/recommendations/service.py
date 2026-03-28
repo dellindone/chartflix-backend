@@ -25,7 +25,7 @@ class RecommendationService:
         reco = await reco_repo.get_by_id(db, reco_id)
         if not reco: raise NotFoundException("Recommendation Not Found")
         if reco.status != RecoStatus.PUBLISHED:
-            if current_user.role != UserRole.USER:
+            if current_user.role == UserRole.USER:
                 raise NotFoundException("Recommendation not found")
         return reco
     

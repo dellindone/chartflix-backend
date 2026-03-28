@@ -28,7 +28,7 @@ async def get_my_alerts(
 ):
     return await controller.get_my_recommendations(db, current_user)
 
-@router.get("/{alert_id}")
+@router.get("/{reco_id}")
 async def get_one(
     reco_id: str,
     db: AsyncSession = Depends(get_db),
