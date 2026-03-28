@@ -10,11 +10,11 @@ async def get_all(db: AsyncSession, current_user: User, page: int, limit: int):
     skip = get_pagination_params(page=page, limit=limit)
     alerts, total = await alert_service.get_all_published(db, skip, limit)
     data = [AlertResponse.model_validate(a).model_dump() for a in alerts]
-    return success(data=data, message="Alerts Fetched", meta=paginate(page, limit, total))
+    return success(data=data, message="Alerts Fetched", meta=paginate(total, page, limit))
 
 async def get_my_alerts(db: AsyncSession, current_user: User) -> dict:
     alerts = await alert_service.get_my_alert(db, current_user.id)
-    data = [AlertResponse.model_validate(alerts).model_dump() for a in alerts]
+    data = [AlertResponse.model_validate(a).model_dump() for a in alerts]
     return success(data=data, message="alert fetched")
 
 async def get_one(db: AsyncSession, alert_id: str, current_user: User) -> dict:

@@ -16,10 +16,8 @@ class AlertRepository:
         return result.scalars().all(), count.scalar()
 
     async def get_by_analyst(self, db: AsyncSession, analyst_id: str | None) -> list[Alert]:
-        result = await db.execute(
-            select(Alert). \
-                where(Alert.analyst_id == analyst_id)). \
-                order_by(desc(Alert.created_at))
+        query = select(Alert).where(Alert.analyst_id == analyst_id).order_by(desc(Alert.created_at))
+        result = await db.execute(query)
         return result.scalars().all()
 
     async def create(self, db: AsyncSession, analyst_id: str | None, data: dict) -> Alert:

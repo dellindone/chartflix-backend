@@ -32,7 +32,7 @@ async def create(db:AsyncSession, data: CreateRecommendationRequest, current_use
         message="Recommendation Created"
     )
 
-async def update(db: AsyncSession, reco_id: str, data: UpdateRecommendationRequest, current_user: User) -> User:
+async def update(db: AsyncSession, reco_id: str, data: UpdateRecommendationRequest, current_user: User) -> dict:
     reco = await reco_service.update(db, reco_id=reco_id, data=data, current_user=current_user)
     return success(
         data=RecommendationResponse.model_validate(reco).model_dump(),

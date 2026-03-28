@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Any
+from pydantic import BaseModel, model_validator
 from app.models.recommendation import RecoAction, RecoStatus
 
 class CreateRecommendationRequest(BaseModel):
@@ -27,6 +28,7 @@ class UpdateRecommendationRequest(BaseModel):
 class RecommendationResponse(BaseModel):
     id: str
     analyst_id: str
+    analyst_name: str | None = None
     symbol: str
     name: str
     action: RecoAction
@@ -41,3 +43,32 @@ class RecommendationResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode='before')
+    @classmethod
+    def extract_analyst_name(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return data
+        analyst_name = None
+        try:
+            if data.analyst and data.analyst.user:
+                analyst_name = data.analyst.user.name
+        except Exception:
+            pass
+        return {
+            'id': data.id,
+            'analyst_id': data.analyst_id,
+            'analyst_name': analyst_name,
+            'symbol': data.symbol,
+            'name': data.name,
+            'action': data.action,
+            'sector': data.sector,
+            'cmp': data.cmp,
+            'target': data.target,
+            'stop_loss': data.stop_loss,
+            'note': data.note,
+            'status': data.status,
+            'published_at': data.published_at,
+            'created_at': data.created_at,
+            'updated_at': data.updated_at,
+        }
