@@ -128,4 +128,58 @@ Updated after each module is completed.
 
 ---
 
-*Updated after: Auth module completion (March 2026)*
+## Users Module
+
+**Q: Why doesn't `get_profile` go through the service layer?**
+> The user object is already available from the JWT dependency (`current_user`). Calling the service just to return what we already have would be a redundant DB query. Service layer is only needed when there's actual work — a DB fetch, a business decision, or data transformation.
+
+**Q: What is `exclude_unset=True` in `model_dump()` and why is it important for PATCH endpoints?**
+> It returns only the fields the client actually sent, not all fields. Without it, `PATCH /users/me` with `{"name": "Aditya"}` would also send `phone=None, location=None` — wiping those fields. With `exclude_unset=True`, only `name` is updated and other fields stay untouched.
+
+**Q: What is `model_validate()` and `from_attributes=True`?**
+> `model_validate()` is Pydantic v2's way to convert an object to a schema. `from_attributes=True` in the schema's `model_config` tells Pydantic to read data from object attributes (`user.name`) instead of expecting a dict. Without it, converting a SQLAlchemy object to a Pydantic schema would fail.
+
+---
+
+## Alerts & Recommendations Modules
+
+**Q: Why is `alerts.analyst_id` a FK to `users.id` but `recommendations.analyst_id` is a FK to `analysts.id`?**
+> Alerts can come from any source — not just analysts. An alert is a market signal that anyone (admin, system, analyst) can post. Recommendations are strictly analyst work — they require an analyst profile. This is why creating a recommendation first fetches the analyst profile using the user's id.
+
+**Q: How does the publish toggle work?**
+> A single PATCH endpoint handles both directions. If the content is currently `ACTIVE/PUBLISHED`, it sets status to `INACTIVE/DRAFT` and clears `published_at`. If it's anything else, it sets status to `ACTIVE/PUBLISHED` and sets `published_at` to now. One endpoint, two behaviors based on current state.
+
+**Q: How do you hide draft content from regular users?**
+> In `get_one()`, after fetching the content, we check if `status != PUBLISHED`. If so and the requester is a regular `USER`, we raise `NotFoundException` — as if the content doesn't exist. This is called security through obscurity. Analysts and admins can still see drafts.
+
+**Q: What is a list comprehension and where did you use it?**
+> A compact way to build a list by looping. `[AlertResponse.model_validate(a).model_dump() for a in alerts]` converts every SQLAlchemy Alert object to a dict in one line. It's equivalent to a for loop that appends to a list but cleaner.
+
+**Q: Why does `@router.get("/my")` need to be above `@router.get("/{alert_id}")`?**
+> FastAPI matches routes top to bottom. If `/{alert_id}` comes first, the string "my" would be matched as an `alert_id` and the `/my` route would never be reached. Specific routes must always be defined before parameterized routes.
+
+**Q: What is `passive_deletes=True` on a relationship?**
+> It tells SQLAlchemy not to nullify or delete child records itself when a parent is deleted — instead let the database's `ondelete="CASCADE"` handle it. Without it, SQLAlchemy tries to SET NULL on the child's FK before deletion, which fails if the column is NOT NULL.
+
+---
+
+## Admin Module
+
+**Q: What happens when an admin promotes a user to analyst?**
+> Two things happen atomically in the service: the user's `role` is changed to `analyst`, and a new row is created in the `analysts` table. Both must happen together — role alone isn't enough because recommendations require an analyst profile.
+
+**Q: What happens when an admin demotes an analyst back to user?**
+> The analyst profile row is deleted from the `analysts` table, and their role is changed back to `user`. Because `ondelete="CASCADE"` is set on `recommendations.analyst_id`, all their recommendations are automatically deleted by PostgreSQL.
+
+**Q: Why can't an admin create another admin through the API?**
+> Admin is a privileged role that should only be created via direct DB access, not through an API endpoint. Allowing API-based admin creation means one compromised admin account could escalate privileges. The API blocks `role=admin` updates with a `BadRequestException`.
+
+**Q: Why does `delete_content` search both alerts and recommendations?**
+> Admin should have a single endpoint to delete any content regardless of type. The service tries to find the id in alerts first, then recommendations. This simplifies the frontend — it doesn't need to know the content type before calling delete.
+
+**Q: What is `_: User = Depends(require_role("admin"))` — what does the underscore mean?**
+> The underscore `_` is a Python convention meaning "I need this dependency to run for its side effect (role check), but I don't need the returned value." The role check still happens — if the user isn't admin, FastAPI raises 403 before the route runs.
+
+---
+
+*Updated after: Full project completion (March 2026)*

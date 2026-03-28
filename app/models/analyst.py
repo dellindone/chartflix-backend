@@ -19,4 +19,4 @@ class Analyst(Base, TimestampMixin):
 
     avatar_bg: Mapped[str] = mapped_column(String, nullable=False, default="#388bfd")
     user: Mapped["User"] = relationship("User", back_populates="analyst_profile")
-    recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="analyst")
+    recommendations: Mapped[list["Recommendation"]] = relationship("Recommendation", back_populates="analyst", passive_deletes=True)

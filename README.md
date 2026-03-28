@@ -142,10 +142,10 @@ DRAFT  →  (analyst publishes)  →  PUBLISHED  →  (analyst unpublishes)  →
 ```
 1. Login → validate email + bcrypt password
 2. Issue access_token  (JWT, 15 min)  → returned in response body
-3. Issue refresh_token (JWT, 7 days)  → set as httpOnly cookie
+3. Issue refresh_token (JWT, 7 days)  → returned in response body
 4. Protected requests  → Authorization: Bearer <access_token>
-5. Token expired       → POST /auth/refresh → new access_token
-6. Logout              → refresh token added to Redis blacklist
+5. Token expired       → POST /auth/refresh with refresh_token → new tokens
+6. Logout              → refresh token deleted from DB
 ```
 
 **JWT Payload:**
@@ -319,17 +319,14 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/chartflix
+DATABASE_URL=postgresql+asyncpg://user:password@db.xxxx.supabase.co:5432/postgres?ssl=require
 
 REDIS_URL=redis://localhost:6379
 
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_BUCKET_NAME=chartflix-uploads
-AWS_REGION=ap-south-1
-
 ALLOWED_ORIGINS=http://localhost:5173
 ```
+
+> See `.env.example` for a ready-to-fill template.
 
 ---
 
