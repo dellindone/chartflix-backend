@@ -9,7 +9,7 @@ from app.utils.response import success
 async def get_all(db: AsyncSession, current_user: User, page: int, limit: int):
     skip = get_pagination_params(page=page, limit=limit)
     alerts, total = await alert_service.get_all_published(db, skip, limit)
-    data = [AlertResponse.model_validate(alerts).model_dump() for a in alerts]
+    data = [AlertResponse.model_validate(a).model_dump() for a in alerts]
     return success(data=data, message="Alerts Fetched", meta=paginate(page, limit, total))
 
 async def get_my_alerts(db: AsyncSession, current_user: User) -> dict:
