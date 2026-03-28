@@ -341,24 +341,53 @@ git clone <repo-url>
 cd chartflix-backend
 
 # 2. Create virtual environment
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+
+# Activate — Mac/Linux
+source .venv/bin/activate
+
+# Activate — Windows
+.venv\Scripts\activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
 # 4. Set up environment variables
 cp .env.example .env
-# Edit .env with your database credentials
+# Edit .env with your actual values (DB URL, secret key, etc.)
 
 # 5. Run database migrations
 alembic upgrade head
 
-# 6. Start the server
+# 6. Start the development server
 uvicorn main:app --reload --port 8000
 ```
 
 API docs available at: `http://localhost:8000/docs`
+
+---
+
+## Common Commands
+
+```bash
+# Run server
+uvicorn main:app --reload
+
+# Generate a new migration after changing models
+alembic revision --autogenerate -m "describe your change"
+
+# Apply pending migrations
+alembic upgrade head
+
+# Rollback last migration
+alembic downgrade -1
+
+# See current migration version
+alembic current
+
+# See migration history
+alembic history
+```
 
 ---
 
