@@ -1,35 +1,25 @@
-import os
-import logging
+from pydantic_settings import BaseSettings
 
-logger = logging.getLogger(__name__)
+class Settings(BaseSettings):
+    APP_NAME: str = "Chartflix APIs"
+    DESCRIPTION: str="Trading alert and stock recommendation platform"
+    VERSION: str = "1.0.0"
+    DEBUG: bool = True
 
-# Load .env file if it exists (for local development)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except:
-    pass
+    SECRET_KEY: str = "/rV2tCnTuGeLniRTQKNgcbVzDwa4uxsxM/u0KTonUug="
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-# DATABASE_URL - Priority: 1) Direct DATABASE_URL var, 2) Build from components
-DATABASE_URL = os.getenv("DATABASE_URL")
+    DATABASE_URL: str
 
-if not DATABASE_URL:
-    HOST = os.getenv("HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    USERNAME = os.getenv("USERNAME", "postgres")
-    PASSWORD = os.getenv("PASSWORD", "")
-    DATABASE = os.getenv("DATABASE", "postgres")
-    
-    DATABASE_URL = f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@{HOST}:{DB_PORT}/{DATABASE}?ssl=require"
+    REDIS_URL: str = "redis://localhost:6379"
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
 
-logger.info(f"Database URL configured: {bool(DATABASE_URL)}")
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
-# JWT configuration
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    SECRET_KEY = "your-secret-key-change-in-production"
-    logger.warning("SECRET_KEY not set, using default")
+    model_config = {"env_file": ".env", "case_sensitive": True, "extra": "ignore"}
 
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+settings = Settings()

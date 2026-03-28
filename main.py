@@ -1,47 +1,44 @@
-import logging
-import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.base import Base
-from app.db.engine import engine
-from app.modules.auth.router import router as auth_router
-from app.modules.user.router import router as user_router
+from app.core.config import settings
+from app.utils.logger import logger
+from app.core.exceptions import AppException, app_exception_handler
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-logger = logging.getLogger(__name__)
-
-# Create FastAPI app
 app = FastAPI(
-    title="Chartflix Backend API",
-    description="API for Chartflix, a Stock Alert tracking application"
+    title=settings.APP_NAME,
+    description=settings.DESCRIPTION,
+    version=settings.VERSION,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 
-# Add CORS middleware
+app.add_exception_handler(AppException, app_exception_handler)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Health check endpoint
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
-
-# Startup event
 @app.on_event("startup")
-async def startup_event():
-    logger.info("Application starting up...")
+async def startup():
+    logger.info(f"Starting {settings.APP_NAME}")
 
-app.include_router(auth_router)
-app.include_router(user_router)
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "healthy", "app": settings.APP_NAME}
 
-logger.info("FastAPI app created successfully")
+
+from app.modules.auth.router import router as auth_router
+# from app.modules.users.router import router as users_router
+# from app.modules.alerts.router import router as alerts_router
+# from app.modules.recommendations.router import router as recommendations_router
+# from app.modules.admin.router import router as admin_router
+
+app.include_router(auth_router, prefix="/api/v1")
+# app.include_router(users_router, prefix="/api/v1")
+# app.include_router(alerts_router, prefix="/api/v1")
+# app.include_router(recommendations_router, prefix="/api/v1")
+# app.include_router(admin_router, prefix="/api/v1")

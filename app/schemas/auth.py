@@ -1,31 +1,29 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
-class SignupRequest(BaseModel):
+class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     confirm_password: str
-    fullname: str
-    phone: str
+    name: str
+    phone: str | None = None
 
-class SignInRequest(BaseModel):
+    @field_validator("password")
+    def validate_password(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        return value
+    
+    @field_validator("confirm_password")
+    def validate_confirm_password(cls, value: str, info) -> str:
+        if "password" in info.data and value != info.data["password"]:
+            raise ValueError("Passwords do not match")
+        return value
+
+class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class Token(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
-    token_type: str
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
-    # token_type:str = "bearer"
-
-class AccessTokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-
-class LogoutRequest(BaseModel):
-    refresh_token: str
-
-class LogoutResponse(BaseModel):
-    message: str
+    token_type: str = "bearer"
