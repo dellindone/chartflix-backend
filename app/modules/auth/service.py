@@ -51,4 +51,4 @@ class AuthService:
         user = await auth_repo.get_user_by_id(db, token_data.user_id)
         if not user:
             raise UnauthorizedException("Account not found")
-        return create_access_token(user_id=user.id, role=user.role.value), refresh_token
+        return create_access_token(user_id=user.id, role=user.role), refresh_token
