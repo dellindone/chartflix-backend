@@ -177,7 +177,7 @@ class OptionChainService:
         try:
             syms = df[9].head(15).tolist()
             quotes = self._fetch_quotes(syms, session)
-            details = {r[9]: {"lot": r[3], "strike": r[15]} for _, r in df.iterrows()}
+            details = {r[9]: {"lot": int(float(r[3])) if r[3] else 0, "strike": float(r[15]) if r[15] else 0.0} for _, r in df.iterrows()}
             processed = []
 
             for q in sorted(quotes, key=lambda x: x["v"]["volume"], reverse=True):
