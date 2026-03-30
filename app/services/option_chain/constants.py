@@ -22,7 +22,7 @@ def resolve_category(symbol: str) -> str:
         return "COMMODITY"
     if s in NSE_INDEX_SYMBOLS | BSE_INDEX_SYMBOLS:
         return "INDEX"
-    return "EQUITY"
+    return "STOCK"
 
 SPREAD_THRESHOLD_PCT = 2.0
 
