@@ -27,7 +27,7 @@ async def startup():
     import asyncio
     from app.core.websocket import start_redis_listener
     logger.info(f"Starting {settings.APP_NAME}")
-    asyncio.create_task(start_redis_listener())
+    app.state.redis_listener = asyncio.create_task(start_redis_listener())
 
 @app.get("/health", tags=["Health"])
 async def health():
