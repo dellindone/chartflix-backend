@@ -14,7 +14,7 @@ async def handle_webhook(
     category: str,
     secret: str,
 ):
-    if secret != settings.WEBHOOK_SECRET:
+    if secret.strip() != settings.WEBHOOK_SECRET.strip():
         raise UnauthorizedException("Invalid webhook secret")
 
     background_tasks.add_task(
