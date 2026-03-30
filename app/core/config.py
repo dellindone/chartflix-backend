@@ -12,8 +12,16 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     DATABASE_URL: str
+    WEBHOOK_SECRET: str
 
-    REDIS_URL: str = "redis://localhost:6379"
+    FYERS_CLIENT_ID: str = ""
+    FYERS_SECRET_KEY: str = ""
+    FYERS_REDIRECT_URI: str = ""
+    FYERS_ID: str = ""
+    FYERS_PIN: str = ""
+    FYERS_TOTP_SECRET: str = ""
+
+    REDIS_URL: str
     ALLOWED_ORIGINS: str = "http://localhost:3000"
 
     @property
