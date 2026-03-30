@@ -34,8 +34,12 @@ class OptionChainService:
         try:
             cached = await redis.get(cache_key)
             if cached:
-                logger.info(f"CSV cache hit for {scrip}")
-                return pickle.loads(cached)
+                try:
+                    logger.info(f"CSV cache hit for {scrip}")
+                    return pickle.loads(cached)
+                except Exception:
+                    logger.warning(f"Stale cache for {scrip}, deleting and re-fetching")
+                    await redis.delete(cache_key)
 
             logger.info(f"CSV cache miss for {scrip}, fetching...")
             url = self._get_csv_url(scrip)
