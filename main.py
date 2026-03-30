@@ -37,6 +37,7 @@ from app.modules.alerts.router import router as alerts_router
 from app.modules.recommendations.router import router as recommendations_router
 from app.modules.admin.router import router as admin_router
 from app.modules.webhook.router import router as webhook_router
+from app.modules.websocket.router import router as websocket_router
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
@@ -44,3 +45,4 @@ app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(recommendations_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(webhook_router, prefix="/api/v1")
+app.include_router(websocket_router)

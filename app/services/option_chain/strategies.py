@@ -22,23 +22,30 @@ class NSEBSEStrategy:
                 itm = [c for c in candidates if c["strike"] > atm]
                 itm = sorted(itm, key=lambda x: x["strike"])
 
-            # Pick 2nd ITM
-            target = itm[1] if len(itm) >= 2 else (itm[0] if itm else None)
-            if not target:
-                logger.warning("No ITM strike found")
-                return None
+            # Try ITM 2 → ITM 1 → ATM until spread passes
+            candidates_ordered = []
+            if len(itm) >= 2:
+                candidates_ordered.append(itm[1])
+            if len(itm) >= 1:
+                candidates_ordered.append(itm[0])
 
-            # Check spread
-            if target["spread"] is None:
-                logger.warning(f"No spread data for {target['instrument']}")
-                return None
+            # add ATM strike
+            atm_candidates = [c for c in candidates if c["strike"] == atm]
+            if atm_candidates:
+                candidates_ordered.append(atm_candidates[0])
 
-            spread_pct = abs(target["spread"]) * 100
-            if spread_pct >= SPREAD_THRESHOLD_PCT:
-                logger.warning(f"{target['instrument']} spread {spread_pct:.2f}% too wide, no trade")
-                return None
+            for target in candidates_ordered:
+                if target["spread"] is None:
+                    logger.warning(f"No spread data for {target['instrument']}, trying next")
+                    continue
+                spread_pct = abs(target["spread"]) * 100
+                if spread_pct < SPREAD_THRESHOLD_PCT:
+                    logger.info(f"Selected {target['instrument']} with spread {spread_pct:.2f}%")
+                    return target
+                logger.warning(f"{target['instrument']} spread {spread_pct:.2f}% too wide, trying next")
 
-            return target
+            logger.warning("No suitable strike found within spread threshold")
+            return None
         except Exception as e:
             logger.error(f"NSEBSEStrategy error: {e}")
             return None

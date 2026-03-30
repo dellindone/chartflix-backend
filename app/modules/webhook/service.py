@@ -6,7 +6,8 @@ from app.models.alert import AlertStatus, AlertCategory, AlertDirection
 from app.modules.webhook.repository import webhook_repo
 from app.services.option_chain.option_chain import option_chain_service
 from app.services.option_chain.strategies import StrategyFactory
-from app.services.option_chain.constants import LOT_SIZES
+
+from app.core.websocket import manager
 from app.utils.logger import logger
 
 
@@ -30,7 +31,7 @@ class WebhookService:
                 logger.warning(f"Strategy returned no trade for {symbol}")
                 return
 
-            lot_size = best["lot_size"] or LOT_SIZES.get(symbol.upper(), 1)
+            lot_size = best["lot_size"] or 1
             investment = round(best["lp"] * lot_size, 2)
 
             data = {
@@ -50,6 +51,8 @@ class WebhookService:
 
             alert = await webhook_repo.create_alert(db, analyst_id=analyst_id, data=data)
             logger.info(f"Alert created for {symbol}: {best['instrument']}")
+
+            await manager.broadcast(f'{{"symbol": "{symbol}", "contract": "{best["instrument"]}", "direction": "{direction}", "ltp": {result["stock_ltp"]}, "option_ltp": {best["lp"]}, "investment": {investment}}}')
             return alert
 
         except Exception as e:
