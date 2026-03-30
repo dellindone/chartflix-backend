@@ -43,7 +43,7 @@ class OptionChainService:
             resp.raise_for_status()
 
             content = resp.content.decode("utf-8", errors="ignore")
-            df = pd.read_csv(StringIO(content), header=None, names=range(21), low_memory=False)
+            df = pd.read_csv(StringIO(content), header=None, names=range(21), dtype=object)
 
             # Filter for this scrip only before caching — keeps size small
             df = df[df[1].str.split().str[0] == scrip.strip().upper()]
