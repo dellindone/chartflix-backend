@@ -1,23 +1,47 @@
+import asyncio
+import redis.asyncio as aioredis
 from fastapi import WebSocket
+from app.core.config import settings
 from app.utils.logger import logger
+
+ALERT_CHANNEL = "chartflix:alerts"
+
 
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
-    
+
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
         logger.info(f"WebSocket connected. Total: {len(self.active_connections)}")
-    
+
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
         logger.info(f"WebSocket disconnected. Total: {len(self.active_connections)}")
-    
+
     async def broadcast(self, message: str):
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
             except Exception:
                 pass
+
+
+async def start_redis_listener():
+    logger.info("Starting Redis Pub/Sub listener...")
+    while True:
+        try:
+            redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True, ssl_cert_reqs=None)
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(ALERT_CHANNEL)
+            logger.info(f"Subscribed to Redis channel: {ALERT_CHANNEL}")
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    await manager.broadcast(message["data"])
+        except Exception as e:
+            logger.error(f"Redis listener error: {e}, retrying in 3s...")
+            await asyncio.sleep(3)
+
+
 manager = ConnectionManager()

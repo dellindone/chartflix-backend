@@ -36,7 +36,6 @@ class NSEBSEStrategy:
 
             for target in candidates_ordered:
                 if target["spread"] is None:
-                    logger.warning(f"No spread data for {target['instrument']}, trying next")
                     continue
                 spread_pct = abs(target["spread"]) * 100
                 if spread_pct < SPREAD_THRESHOLD_PCT:
@@ -44,7 +43,13 @@ class NSEBSEStrategy:
                     return target
                 logger.warning(f"{target['instrument']} spread {spread_pct:.2f}% too wide, trying next")
 
-            logger.warning("No suitable strike found within spread threshold")
+            # Fallback: no bid/ask data (illiquid exchange) — pick first candidate by ITM order
+            if candidates_ordered:
+                best = candidates_ordered[0]
+                logger.warning(f"No spread data available, falling back to {best['instrument']} by ITM order")
+                return best
+
+            logger.warning("No suitable strike found")
             return None
         except Exception as e:
             logger.error(f"NSEBSEStrategy error: {e}")
@@ -61,6 +66,12 @@ class MCXStrategy:
                 if spread_pct < SPREAD_THRESHOLD_PCT:
                     logger.info(f"MCX selected {item['instrument']} with spread {spread_pct:.2f}%")
                     return item
+
+            # Fallback: no bid/ask data — pick first item by volume
+            if processed:
+                best = processed[0]
+                logger.warning(f"No spread data available, falling back to {best['instrument']} by volume")
+                return best
 
             logger.warning("No MCX instrument passed spread filter")
             return None

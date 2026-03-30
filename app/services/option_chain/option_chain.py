@@ -10,9 +10,9 @@ import redis.asyncio as aioredis
 from app.core.config import settings
 from app.services.option_chain.fyers_client import fyers_client
 from app.services.option_chain.constants import (
-    NSE_FO_CSV_URL, BSE_FO_CSV_URL,
+    NSE_FO_CSV_URL, BSE_FO_CSV_URL, MCX_FO_CSV_URL,
     CSV_CACHE_KEY, CSV_CACHE_TTL,
-    NSE_INDEX_SYMBOLS, BSE_INDEX_SYMBOLS
+    MCX_SYMBOLS, NSE_INDEX_SYMBOLS, BSE_INDEX_SYMBOLS
 )
 from app.utils.logger import logger
 
@@ -23,7 +23,10 @@ class OptionChainService:
         return aioredis.from_url(settings.REDIS_URL, decode_responses=False, ssl_cert_reqs=None)
 
     def _get_csv_url(self, scrip: str) -> str:
-        if scrip.upper() in BSE_INDEX_SYMBOLS:
+        s = scrip.upper()
+        if s in MCX_SYMBOLS:
+            return MCX_FO_CSV_URL
+        if s in BSE_INDEX_SYMBOLS:
             return BSE_FO_CSV_URL
         return NSE_FO_CSV_URL
 
@@ -162,6 +165,8 @@ class OptionChainService:
             "BANKEX": "BSE:BANKEX-INDEX",
         }
         symbol = symbol.upper()
+        if symbol in MCX_SYMBOLS:
+            return f"MCX:{symbol}-INDEX"
         exchange = "BSE" if symbol in {"SENSEX", "BANKEX"} else "NSE"
         return mapping.get(symbol, f"{exchange}:{symbol}-EQ")
 
@@ -194,6 +199,7 @@ class OptionChainService:
 
                 bid = v["bid"][0][0] if isinstance(v.get("bid"), list) and v["bid"] else v.get("bid")
                 ask = v["ask"][0][0] if isinstance(v.get("ask"), list) and v["ask"] else v.get("ask")
+                logger.info(f"{name} bid={bid} ask={ask} lp={lp}")
                 spread = (bid - ask) / bid if bid and ask and bid != 0 else None
 
                 processed.append({

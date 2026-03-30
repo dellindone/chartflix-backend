@@ -1,19 +1,22 @@
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+import redis.asyncio as aioredis
 
+from app.core.config import settings
 from app.core.database import AsyncSessionFactory
 from app.models.alert import AlertStatus, AlertCategory, AlertDirection
 from app.modules.webhook.repository import webhook_repo
 from app.services.option_chain.option_chain import option_chain_service
 from app.services.option_chain.strategies import StrategyFactory
-
-from app.core.websocket import manager
+from app.services.option_chain.constants import resolve_category
+from app.core.websocket import ALERT_CHANNEL
 from app.utils.logger import logger
 
 
 class WebhookService:
 
-    async def process_alert(self, db: AsyncSession, symbol: str, price: float, direction: str, category: str):
+    async def process_alert(self, db: AsyncSession, symbol: str, price: float, direction: str, category: str = None):
+        category = resolve_category(symbol)
         try:
             analyst_id = await webhook_repo.get_system_analyst_id(db)
             if not analyst_id:
@@ -52,7 +55,10 @@ class WebhookService:
             alert = await webhook_repo.create_alert(db, analyst_id=analyst_id, data=data)
             logger.info(f"Alert created for {symbol}: {best['instrument']}")
 
-            await manager.broadcast(f'{{"symbol": "{symbol}", "contract": "{best["instrument"]}", "direction": "{direction}", "ltp": {result["stock_ltp"]}, "option_ltp": {best["lp"]}, "investment": {investment}}}')
+            message = f'{{"symbol": "{symbol}", "contract": "{best["instrument"]}", "direction": "{direction}", "ltp": {result["stock_ltp"]}, "option_ltp": {best["lp"]}, "investment": {investment}}}'
+            redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True, ssl_cert_reqs=None)
+            await redis.publish(ALERT_CHANNEL, message)
+            await redis.aclose()
             return alert
 
         except Exception as e:
