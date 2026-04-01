@@ -2,7 +2,7 @@
 
 A REST API backend for **Chartflix** — a trading alert and stock recommendation platform.
 
-Analysts publish stock alerts (option contracts) and stock recommendations. Regular users consume published content. Admins manage users and moderate content.
+Analysts publish stock alerts (option contracts) and stock recommendations. Regular users consume published content. Admins manage users and moderate content. Trading platforms (TradingView, ChartInk) push alerts via webhook which are enriched with live option chain data and broadcast in real-time via WebSocket.
 
 ---
 
@@ -10,155 +10,125 @@ Analysts publish stock alerts (option contracts) and stock recommendations. Regu
 
 | Technology | Version | Purpose |
 |-----------|---------|---------|
-| Python | 3.11+ | Runtime |
+| Python | 3.10 | Runtime |
 | FastAPI | 0.111.0 | Web framework |
-| Uvicorn | 0.29.0 | ASGI server |
+| Uvicorn | 0.29.0 | ASGI server (2 workers) |
 | SQLAlchemy | 2.0.30 | ORM (async mode) |
 | asyncpg | 0.29.0 | PostgreSQL async driver |
 | Alembic | 1.13.1 | Database migrations |
 | Pydantic | 2.7.1 | Data validation |
+| pydantic-settings | - | Config from .env |
 | python-jose | 3.3.0 | JWT tokens |
 | passlib | 1.7.4 | Password hashing (bcrypt) |
-| Redis | 5.0.4 | Token blacklisting |
-| httpx | 0.27.0 | Async HTTP client (tests) |
-| pytest | 8.2.0 | Testing framework |
+| Redis (aioredis) | 5.0.4 | Pub/Sub for WebSocket + CSV caching |
+| fyers-apiv3 | 3.1.11 | Option chain data |
+| pandas | 2.1.4 | CSV processing |
+| numpy | 1.26.4 | Numerical operations |
+| pyotp | - | Fyers TOTP login |
+| requests | - | Sync HTTP (CSV fetch) |
 
 ---
 
 ## Roles
 
-There are exactly **3 roles** in the system:
-
 | Role | How Assigned | Permissions |
 |------|-------------|-------------|
-| **USER** | Default on signup | Read published content, edit own profile |
-| **ANALYST** | Admin promotes them | Create, edit, publish/unpublish own content. Cannot delete. |
-| **ADMIN** | Seeded in DB manually | Everything. Promote/revoke analyst. Delete any content. |
+| **USER** | Default on signup | Read approved content (requires `is_approved=true`) |
+| **ANALYST** | Admin promotes | Create, edit, publish/unpublish own alerts & recommendations |
+| **ADMIN** | Seeded in DB manually | Everything. Promote/revoke analyst. Approve/reject users. Delete any content. |
 
-### Authorization Rules
+### Access Approval
 
-- Analyst can only touch **their own** content (`analyst_id == current_user.id`)
-- Only **admin** can delete content
-- Only **analyst** and **admin** can create content
-- Frontend checks are UX only — **backend is the real gate**
+New users have `is_approved = false` by default. They cannot see alerts until an admin approves them.
+
+```
+User registers → is_approved = false
+     ↓
+Admin approves via PATCH /admin/users/{id}/approve
+     ↓
+is_approved = true → user can now see alerts and connect via WebSocket
+```
 
 ---
 
 ## Content Lifecycle
 
 ```
-DRAFT  →  (analyst publishes)  →  PUBLISHED  →  (analyst unpublishes)  →  DRAFT
-                                      │
-                               (admin deletes)
-                                      │
+DRAFT  →  (analyst publishes)  →  ACTIVE  →  (analyst unpublishes)  →  INACTIVE
+                                     │
+                              (admin deletes)
+                                     │
                                 gone from DB
 ```
 
-- On create → always `status = DRAFT`
-- Draft → invisible to USER role
-- Published → visible to everyone
-- Only analyst (own) or admin can toggle publish
-- Only admin can delete — **permanent, no soft delete**
+- On create → always `status = INACTIVE` (draft)
+- INACTIVE → invisible to USER role
+- ACTIVE → visible to approved users
+- WebSocket broadcast fires only when toggled to ACTIVE
 
 ---
 
 ## Database Schema
 
 ### users
-| Column | Type | Constraints |
-|--------|------|-------------|
+| Column | Type | Notes |
+|--------|------|-------|
 | id | UUID | PK |
 | name | String | |
-| email | String | UNIQUE, NOT NULL |
+| email | String | UNIQUE |
 | password | String | bcrypt hashed |
 | phone | String | nullable |
 | location | String | nullable |
-| photo_url | String | nullable (S3 URL) |
+| photo_url | String | nullable |
 | role | Enum | USER, ANALYST, ADMIN (default: USER) |
-| created_at | DateTime | default: now |
-| updated_at | DateTime | auto-update |
+| is_approved | Boolean | default: false |
+| created_at | DateTime | |
+| updated_at | DateTime | |
 
 ### analysts
-| Column | Type | Constraints |
-|--------|------|-------------|
+| Column | Type | Notes |
+|--------|------|-------|
 | id | UUID | PK |
-| user_id | UUID | FK → users.id, UNIQUE (1:1) |
-| tag | String | e.g. "Technical Analyst - 8 yrs" |
+| user_id | UUID | FK → users.id (UNIQUE) |
+| tag | String | e.g. "Technical Analyst" |
 | avatar_bg | String | hex color |
-| avatar_color | String | hex color |
-| created_at | DateTime | |
 
 ### alerts
-| Column | Type | Constraints |
-|--------|------|-------------|
+| Column | Type | Notes |
+|--------|------|-------|
 | id | UUID | PK |
 | analyst_id | UUID | FK → users.id |
 | category | Enum | INDEX, STOCK, COMMODITY |
 | direction | Enum | BULLISH, BEARISH |
-| exchange | String | e.g. NSE, MCX |
-| contract | String | e.g. BANKNIFTY26MAR50000CE |
-| symbol | String | e.g. BANKNIFTY |
-| ltp | Float | last traded price |
+| exchange | String | NSE, BSE, MCX |
+| contract | String | e.g. NIFTY2640722400PE |
+| symbol | String | e.g. NIFTY |
+| ltp | Float | underlying last traded price |
 | strike | Float | |
-| option_ltp | Float | |
-| lot_size | Integer | |
-| investment | Float | |
-| status | Enum | DRAFT, PUBLISHED (default: DRAFT) |
+| option_ltp | Float | option contract price |
+| lot_size | Integer | from Fyers CSV |
+| investment | Float | lot_size × option_ltp |
+| status | Enum | ACTIVE, INACTIVE |
 | published_at | DateTime | nullable |
-| created_at | DateTime | |
-| updated_at | DateTime | |
 
-### recommendations
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | UUID | PK |
-| analyst_id | UUID | FK → analysts.id |
-| sym | String | e.g. RELIANCE |
-| name | String | e.g. Reliance Industries |
-| action | Enum | BUY, SELL, HOLD |
-| sector | String | e.g. Energy, IT, Banking |
-| cmp | Float | current market price |
-| target | Float | |
-| stop_loss | Float | |
-| note | String | max 500 chars |
-| status | Enum | DRAFT, PUBLISHED (default: DRAFT) |
-| published_at | DateTime | nullable |
-| created_at | DateTime | |
-| updated_at | DateTime | |
-
-### refresh_tokens
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | UUID | PK |
-| user_id | UUID | FK → users.id |
-| token | String | stored hashed |
-| expires_at | DateTime | |
-| created_at | DateTime | |
+### recommendations, refresh_tokens
+_(unchanged from v1)_
 
 ---
 
 ## Authentication Flow
 
 ```
-1. Login → validate email + bcrypt password
-2. Issue access_token  (JWT, 15 min)  → returned in response body
-3. Issue refresh_token (JWT, 7 days)  → returned in response body
-4. Protected requests  → Authorization: Bearer <access_token>
-5. Token expired       → POST /auth/refresh with refresh_token → new tokens
-6. Logout              → refresh token deleted from DB
+1. Login → access_token (JWT, 15 min) + refresh_token (JWT, 7 days)
+2. Protected routes → Authorization: Bearer <access_token>
+3. Token expired → POST /auth/refresh → new tokens
+4. Logout → refresh token deleted from DB
 ```
 
-**JWT Payload:**
+JWT Payload:
 ```json
-{
-  "sub": "user_id",
-  "role": "analyst",
-  "exp": 1234567890
-}
+{ "sub": "user_id", "role": "analyst", "exp": 1234567890 }
 ```
-
-- bcrypt cost factor: **12**
-- Algorithm: **HS256**
 
 ---
 
@@ -169,143 +139,133 @@ Base prefix: `/api/v1`
 ### Auth
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| POST | `/auth/register` | Public | Create account (role=USER) |
-| POST | `/auth/login` | Public | Returns access_token, sets refresh cookie |
-| POST | `/auth/logout` | Authenticated | Blacklist refresh token in Redis |
-| POST | `/auth/refresh` | Public | Uses httpOnly cookie, returns new access_token |
+| POST | `/auth/register` | Public | Create account (role=USER, is_approved=false) |
+| POST | `/auth/login` | Public | Returns access_token + refresh_token |
+| POST | `/auth/logout` | Authenticated | Delete refresh token |
+| POST | `/auth/refresh` | Public | Returns new tokens |
 
 ### Users
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| GET | `/users/me` | Authenticated | Get own profile |
-| PATCH | `/users/me` | Authenticated | Update name, email, phone, location |
-| POST | `/users/me/photo` | Authenticated | Upload photo to S3, save URL |
+| GET | `/users/me` | Authenticated | Get own profile (includes is_approved) |
+| PATCH | `/users/me` | Authenticated | Update profile |
 
 ### Alerts
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| GET | `/alerts` | Public | Published only. Filters: category, direction, date_from, date_to, page, limit |
+| GET | `/alerts` | Approved users | Paginated active alerts |
 | GET | `/alerts/my` | Analyst, Admin | Own alerts including drafts |
-| GET | `/alerts/{id}` | Public (published), Analyst (own), Admin | Single alert |
-| POST | `/alerts` | Analyst, Admin | Create alert (status=DRAFT) |
-| PATCH | `/alerts/{id}` | Analyst (own), Admin | Edit alert fields |
-| PATCH | `/alerts/{id}/publish` | Analyst (own), Admin | Toggle DRAFT / PUBLISHED |
-| DELETE | `/alerts/{id}` | Admin only | Permanent delete |
+| GET | `/alerts/{id}` | Approved users | Single alert |
+| POST | `/alerts` | Analyst, Admin | Create alert (status=INACTIVE) |
+| PATCH | `/alerts/{id}` | Analyst (own), Admin | Edit alert |
+| PATCH | `/alerts/{id}/publish` | Analyst (own), Admin | Toggle ACTIVE/INACTIVE + broadcast |
+| DELETE | `/alerts/{id}` | Admin | Permanent delete |
 
 ### Recommendations
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| GET | `/recommendations` | Public | All published, grouped by analyst |
-| GET | `/recommendations/analysts` | Public | List analysts with their published recos |
-| GET | `/recommendations/analysts/{id}` | Public | Single analyst + published recos |
-| GET | `/recommendations/common` | Public | `?analyst_ids=id1,id2` — overlapping stock picks |
-| GET | `/recommendations/my` | Analyst, Admin | Own recos including drafts |
-| POST | `/recommendations` | Analyst, Admin | Create reco (status=DRAFT) |
-| PATCH | `/recommendations/{id}` | Analyst (own), Admin | Edit reco fields |
-| PATCH | `/recommendations/{id}/publish` | Analyst (own), Admin | Toggle DRAFT / PUBLISHED |
-| DELETE | `/recommendations/{id}` | Admin only | Permanent delete |
+_(same pattern as alerts)_
 
 ### Admin
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| GET | `/admin/users` | Admin | List all users with roles |
+| GET | `/admin/users` | Admin | List all users with approval status |
 | PATCH | `/admin/users/{id}/role` | Admin | Set role to ANALYST or USER |
+| PATCH | `/admin/users/{id}/approve` | Admin | Set is_approved = true |
+| PATCH | `/admin/users/{id}/reject` | Admin | Set is_approved = false |
 | DELETE | `/admin/content/{id}` | Admin | Delete any alert or recommendation |
 
----
+### Webhook
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| POST | `/webhook/bullish?secret=<key>` | Secret key | Receive bullish alerts from TradingView/ChartInk |
+| POST | `/webhook/bearish?secret=<key>` | Secret key | Receive bearish alerts |
 
-## Standard API Response
-
-Every response follows this shape:
-
-```json
-// Success
-{
-  "success": true,
-  "data": {},
-  "message": "Done",
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 84
-  }
-}
-
-// Error
-{
-  "success": false,
-  "data": null,
-  "message": "Unauthorized",
-  "error_code": "UNAUTHORIZED"
-}
-```
+### WebSocket
+| Endpoint | Access | Description |
+|----------|--------|-------------|
+| `GET /ws/alerts?token=<jwt>` | Approved users | Real-time alert stream |
 
 ---
 
-## Project Structure
+## Webhook Flow
 
 ```
-chartflix-backend/
-├── main.py                      # FastAPI app, includes all routers
-├── requirements.txt
-├── alembic.ini
-├── .env                         # never commit
-├── .env.example
-├── Dockerfile
-├── docker-compose.yml
-│
-└── app/
-    ├── core/                    # shared infra — no business logic
-    │   ├── config.py            # pydantic BaseSettings, reads .env
-    │   ├── database.py          # async engine, AsyncSession, get_db()
-    │   ├── security.py          # JWT + password utilities
-    │   ├── dependencies.py      # get_current_user(), require_role()
-    │   └── exceptions.py        # AppException, HTTP exception handlers
-    │
-    ├── models/                  # SQLAlchemy ORM (1 file per table)
-    │   ├── base.py              # DeclarativeBase, TimestampMixin
-    │   ├── user.py
-    │   ├── analyst.py
-    │   ├── alert.py
-    │   ├── recommendation.py
-    │   └── refresh_token.py
-    │
-    ├── schemas/                 # Pydantic v2 (request + response shapes)
-    │   ├── common.py            # APIResponse[T], PaginationMeta
-    │   ├── auth.py
-    │   ├── user.py
-    │   ├── alert.py
-    │   ├── analyst.py
-    │   └── recommendation.py
-    │
-    ├── modules/                 # one folder per feature domain
-    │   ├── auth/
-    │   │   ├── router.py        # URL definitions
-    │   │   ├── controller.py    # thin wrapper, returns APIResponse
-    │   │   ├── service.py       # business logic
-    │   │   └── repository.py    # SQL queries only
-    │   ├── users/
-    │   ├── alerts/
-    │   ├── recommendations/
-    │   └── admin/
-    │
-    └── utils/
-        ├── response.py          # success() and error() helpers
-        ├── logger.py            # structured logging
-        └── pagination.py        # paginate() helper
+TradingView / ChartInk
+        │
+        │  POST /webhook/bullish?secret=xxx
+        │  { stocks: "NIFTY,RELIANCE", trigger_prices: "22500,1400" }
+        ▼
+   FastAPI Webhook Router
+        │
+        │  BackgroundTask (async, non-blocking)
+        ▼
+   WebhookService.process_bulk()
+        │
+        ├─ resolve_category(symbol)  → INDEX / STOCK / COMMODITY
+        ├─ OptionChainService.get_best_instrument()
+        │     ├─ Fetch Fyers CSV (or Redis cache, 6h TTL)
+        │     ├─ Find next expiry
+        │     ├─ Build ATM strike chain
+        │     ├─ Fetch live quotes from Fyers API
+        │     └─ Strategy (NSEBSEStrategy / MCXStrategy) → best contract
+        ├─ Save Alert to DB (analyst = system@chartflix.com)
+        └─ Publish to Redis channel "chartflix:alerts"
+                │
+                ▼
+        Redis Pub/Sub (Upstash)
+                │
+                ▼
+        All Railway instances subscribed
+                │
+                ▼
+        WebSocket broadcast to all connected approved users
 ```
+
+---
+
+## WebSocket + Redis Pub/Sub
+
+The WebSocket broadcaster uses Redis Pub/Sub so multiple server instances (workers) stay in sync.
+
+```
+Worker 1 (webhook hit)     Redis Channel          Worker 2 (users connected)
+────────────────────        ──────────────          ────────────────────────
+PUBLISH alert message  →   chartflix:alerts  →     SUBSCRIBE listener
+                                                      → broadcast to WS clients
+```
+
+Each Railway instance subscribes to `chartflix:alerts` on startup. Any publish from any instance reaches all connected clients across all workers.
+
+---
+
+## Option Chain Service
+
+Enriches raw webhook signals with live option contract data from Fyers API.
+
+| Component | Pattern | Responsibility |
+|-----------|---------|---------------|
+| `FyersClient` | Singleton | One login session shared across requests |
+| `OptionChainService` | Service | CSV fetch, expiry selection, strike chain, quotes |
+| `NSEBSEStrategy` | Strategy | Pick ITM2 → ITM1 → ATM, filter by spread |
+| `MCXStrategy` | Strategy | Pick first instrument within spread threshold |
+| `StrategyFactory` | Factory | Returns correct strategy based on symbol |
+| Redis CSV Cache | Cache-Aside | CSV cached per symbol for 6 hours |
 
 ---
 
 ## Design Patterns
 
-| Pattern | File | Responsibility |
-|---------|------|---------------|
-| **Repository** | `repository.py` | SQL only. No role checks. No business logic. |
-| **Strategy** | `service.py` | All business logic. Calls repository. Raises exceptions. |
-| **Facade** | `controller.py` | Thin wrapper. Calls service. Returns standard response. |
-| **Dependency Injection** | FastAPI `Depends()` | Inject DB sessions, current user, role checks. |
-| **Chain of Responsibility** | Middleware | JWT verify → role check → validation → business logic |
+| Pattern | Where Used | Purpose |
+|---------|-----------|---------|
+| Repository | `repository.py` | SQL only, no logic |
+| Service | `service.py` | All business logic |
+| Facade | `controller.py` | Thin wrapper, standard response |
+| Strategy | `strategies.py` | NSE/BSE vs MCX option selection |
+| Factory | `StrategyFactory` | Pick strategy based on symbol |
+| Singleton | `FyersClient`, `OptionChainService` | One instance shared app-wide |
+| Cache-Aside | `_fetch_csv()` | Check Redis first, fetch if miss, store result |
+| Pub/Sub | `websocket.py` + `service.py` | Decouple alert creation from WS delivery |
+| Background Tasks | `webhook/router.py` | Non-blocking webhook processing |
+| Dependency Injection | FastAPI `Depends()` | DB sessions, auth, role + approval checks |
 
 ---
 
@@ -314,90 +274,66 @@ chartflix-backend/
 ```env
 APP_NAME=Chartflix
 DEBUG=false
-SECRET_KEY=minimum-32-character-secret-key-here
+SECRET_KEY=<32+ char secret>
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
-DATABASE_URL=postgresql+asyncpg://user:password@db.xxxx.supabase.co:5432/postgres?ssl=require
+DATABASE_URL=postgresql+asyncpg://...supabase.co:5432/postgres?ssl=require
+REDIS_URL=rediss://...:password@...upstash.io:6379
 
-REDIS_URL=redis://localhost:6379
+WEBHOOK_SECRET=<alphanumeric only, no special chars>
+ALLOWED_ORIGINS=https://chartflix.in,https://www.chartflix.in,http://localhost:5173
 
-ALLOWED_ORIGINS=http://localhost:5173
+FYERS_CLIENT_ID=
+FYERS_SECRET_KEY=
+FYERS_REDIRECT_URI=
+FYERS_ID=
+FYERS_PIN=
+FYERS_TOTP_SECRET=
 ```
 
-> See `.env.example` for a ready-to-fill template.
+> Generate WEBHOOK_SECRET with: `python3 -c "import secrets; print(secrets.token_hex(32))"`
 
 ---
 
 ## Getting Started
 
 ```bash
-# 1. Clone the repo
-git clone <repo-url>
-cd chartflix-backend
-
-# 2. Create virtual environment
-python -m venv .venv
-
-# Activate — Mac/Linux
-source .venv/bin/activate
-
-# Activate — Windows
-.venv\Scripts\activate
-
-# 3. Install dependencies
+# 1. Clone and setup
+git clone <repo-url> && cd chartflix-backend
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 4. Set up environment variables
+# 2. Configure
 cp .env.example .env
-# Edit .env with your actual values (DB URL, secret key, etc.)
+# Fill in DATABASE_URL, REDIS_URL, SECRET_KEY, WEBHOOK_SECRET
 
-# 5. Run database migrations
+# 3. Migrate DB
 alembic upgrade head
 
-# 6. Start the development server
+# 4. Approve admin in DB
+# UPDATE users SET is_approved = true WHERE role = 'admin';
+
+# 5. Run
 uvicorn main:app --reload --port 8000
 ```
 
-API docs available at: `http://localhost:8000/docs`
+API docs: `http://localhost:8000/docs`
 
 ---
 
 ## Common Commands
 
 ```bash
-# Run server
 uvicorn main:app --reload
-
-# Generate a new migration after changing models
-alembic revision --autogenerate -m "describe your change"
-
-# Apply pending migrations
+alembic revision --autogenerate -m "describe change"
 alembic upgrade head
-
-# Rollback last migration
 alembic downgrade -1
-
-# See current migration version
 alembic current
-
-# See migration history
 alembic history
 ```
 
 ---
 
-## Out of Scope (v1)
-
-- Email / SMS notifications
-- WebSocket real-time alerts
-- TradingView webhook integration
-- Payments / subscriptions
-- Two-factor authentication
-- Soft delete
-- Approval queue (analyst publishes directly)
-
----
-
-*Project: Chartflix Backend | Stack: FastAPI + PostgreSQL + Redis | Version: 1.0*
+*Project: Chartflix Backend | Stack: FastAPI + PostgreSQL + Redis + Fyers | Version: 2.0*
