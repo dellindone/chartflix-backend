@@ -35,6 +35,12 @@ class AdminService:
                 await admin_repo.delete_analyst_profile(db, analyst)
         return await admin_repo.update_role(db, user, data.role.value)
     
+    async def set_approval(self, db: AsyncSession, user_id: str, approved: bool):
+        user = await admin_repo.get_user_by_id(db, user_id)
+        if not user:
+            raise NotFoundException("User not found")
+        return await admin_repo.set_approved(db, user, approved)
+
     async def delete_content(self, db: AsyncSession, contend_id: str):
         alert = await db.execute(select(Alert).where(Alert.id == contend_id))
         alert = alert.scalar_one_or_none()

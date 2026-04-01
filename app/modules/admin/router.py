@@ -28,6 +28,24 @@ async def update_role(
     return await controller.update_role(db, user_id, data)
 
 
+@router.patch("/users/{user_id}/approve")
+async def approve_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role("admin"))
+):
+    return await controller.approve_user(db, user_id)
+
+
+@router.patch("/users/{user_id}/reject")
+async def reject_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role("admin"))
+):
+    return await controller.reject_user(db, user_id)
+
+
 @router.delete("/content/{content_id}", status_code=204)
 async def delete_content(
     content_id: str,

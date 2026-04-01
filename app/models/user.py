@@ -1,6 +1,6 @@
 import uuid, enum
 
-from sqlalchemy import String, Enum
+from sqlalchemy import String, Enum, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -23,5 +23,6 @@ class User(Base, TimestampMixin):
     photo_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     role: Mapped[UserRole] = mapped_column(String, nullable=False, default=UserRole.USER.value)
+    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     analyst_profile: Mapped["Analyst"] = relationship("Analyst", back_populates="user", uselist=False)
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")

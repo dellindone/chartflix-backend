@@ -23,6 +23,12 @@ class AdminRepository:
         await db.commit()
         await db.refresh(user)
         return user
+
+    async def set_approved(self, db: AsyncSession, user: User, approved: bool) -> User:
+        user.is_approved = approved
+        await db.commit()
+        await db.refresh(user)
+        return user
     
     async def create_analyst_profile(self, db: AsyncSession, user_id: str, tag: str) -> Analyst:
         analyst = Analyst(user_id=user_id, tag=tag)

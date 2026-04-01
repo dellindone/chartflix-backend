@@ -36,3 +36,10 @@ def require_role(*roles: str):
             )
         return current_user
     return role_checker
+
+async def require_approved(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role == "admin":
+        return current_user
+    if not current_user.is_approved:
+        raise HTTPException(status_code=403, detail="Access not approved. Please contact admin.")
+    return current_user

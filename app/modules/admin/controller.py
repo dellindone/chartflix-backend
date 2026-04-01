@@ -18,6 +18,16 @@ async def update_role(db: AsyncSession, user_id: str, data: UpdateRoleRequest) -
     return success(data=UserResponse.model_validate(user).model_dump(), message="Role updated")
 
 
+async def approve_user(db: AsyncSession, user_id: str) -> dict:
+    user = await admin_service.set_approval(db, user_id, approved=True)
+    return success(data=UserResponse.model_validate(user).model_dump(), message="User approved")
+
+
+async def reject_user(db: AsyncSession, user_id: str) -> dict:
+    user = await admin_service.set_approval(db, user_id, approved=False)
+    return success(data=UserResponse.model_validate(user).model_dump(), message="User rejected")
+
+
 async def delete_content(db: AsyncSession, content_id: str) -> dict:
     await admin_service.delete_content(db, content_id)
     return success(data=None, message="Content deleted")
