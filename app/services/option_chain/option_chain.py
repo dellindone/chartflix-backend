@@ -150,6 +150,10 @@ class OptionChainService:
         try:
             normalized = self._normalize_symbol(scrip)
             data = session.quotes({"symbols": normalized})
+            logger.debug(f"LTP response for {scrip}: {data}")
+            if data.get("s") != "ok" or not data.get("d"):
+                logger.error(f"LTP fetch failed for {scrip}: {data.get('message', data)}")
+                return None
             return data["d"][0]["v"]["lp"]
         except Exception as e:
             logger.error(f"LTP fetch failed for {scrip}: {e}")
