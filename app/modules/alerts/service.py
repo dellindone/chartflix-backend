@@ -1,11 +1,15 @@
+import json
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+import redis.asyncio as aioredis
 
+from app.core.config import settings
 from app.core.exceptions import NotFoundException, ForbiddenException
 from app.models.alert import Alert, AlertStatus
 from app.models.user import User, UserRole
 from app.modules.alerts.repository import alert_repo
 from app.schemas.alert import CreateAlertRequest, UpdateAlertRequest
+from app.core.websocket import ALERT_CHANNEL
 
 class AlertService:
     async def get_all_published(self, db: AsyncSession, skip: int, limit: int):
@@ -33,6 +37,22 @@ class AlertService:
         updates = data.model_dump(exclude_unset=True)
         return await alert_repo.update(db, alert, updates)
 
+    async def _publish(self, alert: Alert):
+        try:
+            message = json.dumps({
+                "symbol": alert.symbol,
+                "contract": alert.contract,
+                "direction": alert.direction.value if hasattr(alert.direction, "value") else alert.direction,
+                "ltp": alert.ltp,
+                "option_ltp": alert.option_ltp,
+                "investment": alert.investment,
+            })
+            redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True, ssl_cert_reqs=None)
+            await redis.publish(ALERT_CHANNEL, message)
+            await redis.aclose()
+        except Exception:
+            pass
+
     async def create(self, db: AsyncSession, data: CreateAlertRequest, current_user: User) -> Alert:
         return await alert_repo.create(db, analyst_id=current_user.id, data=data.model_dump())
 
@@ -49,6 +69,7 @@ class AlertService:
         else:
             alert.status = AlertStatus.ACTIVE
             alert.published_at = datetime.now(timezone.utc)
+            await self._publish(alert)
         await db.commit()
         await db.refresh(alert)
         return alert
