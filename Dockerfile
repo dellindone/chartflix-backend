@@ -22,8 +22,7 @@ COPY requirements.txt .
 
 # Install dependencies with verbose output
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip list
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy project
 COPY . .
@@ -31,5 +30,5 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Run app with Python script that handles PORT env var
-CMD ["python", "start.py"]
+# Run app
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]
