@@ -1,11 +1,16 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
 class UserProfileResponse(BaseModel):
     id: str
     email: str
     name: str
-    phone: str
+    phone: str | None = None
     photo_url: str | None = None
+    role: str
+    is_approved: bool = False
+
+    model_config = {"from_attributes": True}
 
 class UpdateProfileRequest(BaseModel):
     name: str | None = None
@@ -20,5 +25,7 @@ class UserResponse(BaseModel):
     location: str | None
     photo_url: str | None
     role: str
+    is_approved: bool = False
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
