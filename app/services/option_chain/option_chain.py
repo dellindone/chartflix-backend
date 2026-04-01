@@ -146,11 +146,25 @@ class OptionChainService:
             logger.error(f"Strike chain build error: {e}")
             return None, None, None
 
+    def _is_auth_error(self, response: dict) -> bool:
+        code = response.get("code", 0)
+        message = str(response.get("message", "")).lower()
+        return response.get("s") == "error" and (
+            code in (-16, -14, 10, 16) or "token" in message or "auth" in message or "session" in message
+        )
+
     def _fetch_ltp(self, scrip: str, session) -> float | None:
         try:
             normalized = self._normalize_symbol(scrip)
             data = session.quotes({"symbols": normalized})
             logger.debug(f"LTP response for {scrip}: {data}")
+            if self._is_auth_error(data):
+                logger.warning("Fyers auth error on LTP fetch, re-logging in...")
+                fyers_client.invalidate()
+                session = fyers_client.get_session()
+                if not session:
+                    return None
+                data = session.quotes({"symbols": normalized})
             if data.get("s") != "ok" or not data.get("d"):
                 logger.error(f"LTP fetch failed for {scrip}: {data.get('message', data)}")
                 return None
@@ -177,7 +191,15 @@ class OptionChainService:
     def _fetch_quotes(self, symbols: list, session) -> list:
         try:
             syms = ",".join(symbols)
-            return session.quotes({"symbols": syms}).get("d", [])
+            data = session.quotes({"symbols": syms})
+            if self._is_auth_error(data):
+                logger.warning("Fyers auth error on quotes fetch, re-logging in...")
+                fyers_client.invalidate()
+                session = fyers_client.get_session()
+                if not session:
+                    return []
+                data = session.quotes({"symbols": syms})
+            return data.get("d", [])
         except Exception as e:
             logger.error(f"Quotes fetch failed: {e}")
             return []

@@ -6,6 +6,8 @@ from fyers_apiv3 import fyersModel
 from app.core.config import settings
 from app.utils.logger import logger
 
+TOKEN_MAX_AGE_SECONDS = 20 * 3600  # re-login after 20 hours
+
 class FyersClient:
     _instance = None
 
@@ -13,16 +15,24 @@ class FyersClient:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._session = None
+            cls._instance._login_time = None
         return cls._instance
 
+    def _is_token_expired(self) -> bool:
+        if self._login_time is None:
+            return True
+        return (time.time() - self._login_time) > TOKEN_MAX_AGE_SECONDS
+
     def get_session(self):
-        if self._session is None:
-            logger.info("Fyers session not found, logging in...")
+        if self._session is None or self._is_token_expired():
+            logger.info("Fyers session missing or expired, logging in...")
             self._session = self._login()
+            self._login_time = time.time() if self._session else None
         return self._session
 
     def invalidate(self):
         self._session = None
+        self._login_time = None
 
     def _get_encoded(self, value: str) -> str:
         return base64.b64encode(value.encode("ascii")).decode("ascii")
