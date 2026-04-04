@@ -24,7 +24,7 @@ class AuthService:
             raise ConflictException("Email already registered")
         
         hashed = hash_password(data.password)
-        user = await auth_repo.create_user(db, email=data.email, password=hashed, name=data.name, phone=data.phone)
+        user = await auth_repo.create_user(db, email=data.email, password=hashed, name=data.name, phone=data.phone, location=data.location)
         access_token, refresh_token = await self._issue_tokens(db, user)
         return access_token, refresh_token
 

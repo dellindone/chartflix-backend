@@ -5,7 +5,8 @@ class RegisterRequest(BaseModel):
     password: str
     confirm_password: str
     name: str
-    phone: str | None = None
+    phone: str
+    location: str
 
     @field_validator("password")
     def validate_password(cls, value: str) -> str:
