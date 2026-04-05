@@ -25,9 +25,16 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     import asyncio
+    from concurrent.futures import ThreadPoolExecutor
     from app.core.websocket import start_redis_listener
+    from app.tasks.cache_warmer import start_cache_warmer
+    from app.tasks.token_refresher import start_token_refresher
     logger.info(f"Starting {settings.APP_NAME}")
+    loop = asyncio.get_event_loop()
+    loop.set_default_executor(ThreadPoolExecutor(max_workers=20))
     app.state.redis_listener = asyncio.create_task(start_redis_listener())
+    app.state.cache_warmer = asyncio.create_task(start_cache_warmer())
+    app.state.token_refresher = asyncio.create_task(start_token_refresher())
 
 @app.get("/health", tags=["Health"])
 async def health():

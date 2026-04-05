@@ -1,4 +1,5 @@
 import gc
+import gzip
 import pickle
 import asyncio
 import requests
@@ -41,7 +42,7 @@ class OptionChainService:
             if cached:
                 try:
                     logger.info(f"CSV cache hit for {scrip}")
-                    return pickle.loads(cached)
+                    return pickle.loads(gzip.decompress(cached))
                 except Exception:
                     logger.warning(f"Stale cache for {scrip}, deleting and re-fetching")
                     await redis.delete(cache_key)
@@ -61,7 +62,7 @@ class OptionChainService:
                 logger.warning(f"No option data found for {scrip}")
                 return None
 
-            await redis.set(cache_key, pickle.dumps(df), ex=CSV_CACHE_TTL)
+            await redis.set(cache_key, gzip.compress(pickle.dumps(df), compresslevel=6), ex=CSV_CACHE_TTL)
             logger.info(f"CSV fetched, filtered and cached for {scrip} with {len(df)} records")
             return df
         except Exception as e:
