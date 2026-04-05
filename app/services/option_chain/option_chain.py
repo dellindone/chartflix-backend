@@ -1,9 +1,11 @@
 import gc
 import pickle
+import asyncio
 import requests
 import pandas as pd
 from io import StringIO
 from datetime import datetime, date
+from functools import partial
 
 import redis.asyncio as aioredis
 
@@ -46,11 +48,12 @@ class OptionChainService:
 
             logger.info(f"CSV cache miss for {scrip}, fetching...")
             url = self._get_csv_url(scrip)
-            resp = requests.get(url, timeout=60)
+            loop = asyncio.get_event_loop()
+            resp = await loop.run_in_executor(None, partial(requests.get, url, timeout=60))
             resp.raise_for_status()
 
             content = resp.content.decode("utf-8", errors="ignore")
-            df = pd.read_csv(StringIO(content), header=None, names=range(21), dtype=object)
+            df = await loop.run_in_executor(None, partial(pd.read_csv, StringIO(content), header=None, names=range(21), dtype=object))
 
             # Filter for this scrip only before caching — keeps size small
             df = df[df[1].str.split().str[0] == scrip.strip().upper()]
@@ -257,13 +260,18 @@ class OptionChainService:
                 return None
 
             df = df[df["date"].dt.date == expiry]
-            session = fyers_client.get_session()
+            loop = asyncio.get_event_loop()
+            session = await fyers_client.get_session_async()
 
-            df, atm, stock_ltp = self._build_strike_chain(df, scrip, direction)
+            df, atm, stock_ltp = await loop.run_in_executor(
+                None, partial(self._build_strike_chain, df, scrip, direction)
+            )
             if df is None:
                 return None
 
-            processed = self._process_quotes(df, session)
+            processed = await loop.run_in_executor(
+                None, partial(self._process_quotes, df, session)
+            )
             del df
             gc.collect()
 

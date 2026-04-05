@@ -13,9 +13,9 @@ async def bullish_webhook(
     background_tasks: BackgroundTasks,
     secret: str = Query(...),
 ):
-    logger.info(f"Bullish webhook received: {data}")
     stocks = [s.strip() for s in data.stocks.split(",")]
     prices = [float(p.strip()) for p in data.trigger_prices.split(",")]
+    logger.info(f"Bullish webhook received: stocks={stocks} prices={prices}")
     return await controller.handle_webhook(
         background_tasks, stocks, prices,
         direction="BULLISH",
@@ -30,9 +30,9 @@ async def bearish_webhook(
     background_tasks: BackgroundTasks,
     secret: str = Query(...),
 ):
-    logger.info(f"Bearish webhook received: {data}")
     stocks = [s.strip() for s in data.stocks.split(",")]
     prices = [float(p.strip()) for p in data.trigger_prices.split(",")]
+    logger.info(f"Bearish webhook received: stocks={stocks} prices={prices}")
     return await controller.handle_webhook(
         background_tasks, stocks, prices,
         direction="BEARISH",

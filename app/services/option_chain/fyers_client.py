@@ -1,4 +1,5 @@
-import base64, time
+import base64, time, asyncio
+from functools import partial
 import pyotp, requests
 from urllib.parse import urlparse, parse_qs
 from fyers_apiv3 import fyersModel
@@ -29,6 +30,10 @@ class FyersClient:
             self._session = self._login()
             self._login_time = time.time() if self._session else None
         return self._session
+
+    async def get_session_async(self):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.get_session)
 
     def invalidate(self):
         self._session = None
