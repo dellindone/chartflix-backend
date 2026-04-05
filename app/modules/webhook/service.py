@@ -55,7 +55,7 @@ class WebhookService:
             alert = await webhook_repo.create_alert(db, analyst_id=analyst_id, data=data)
             logger.info(f"Alert created for {symbol}: {best['instrument']}")
 
-            message = f'{{"symbol": "{symbol}", "contract": "{best["instrument"]}", "direction": "{direction}", "ltp": {result["stock_ltp"]}, "option_ltp": {best["lp"]}, "investment": {investment}}}'
+            message = f'{{"symbol": "{symbol}", "contract": "{best["instrument"]}", "direction": "{direction}", "ltp": {result["stock_ltp"]}, "option_ltp": {best["lp"]}, "lot_size": {lot_size}, "investment": {investment}}}'
             redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True, ssl_cert_reqs=None)
             await redis.publish(ALERT_CHANNEL, message)
             await redis.aclose()

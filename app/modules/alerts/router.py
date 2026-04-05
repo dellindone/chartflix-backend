@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.alerts import controller
@@ -13,10 +14,12 @@ router = APIRouter(prefix = "/alerts", tags=["Alerts"])
 async def get_all(
     page: int = 1,
     limit: int = 20,
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_approved)
 ):
-    return await controller.get_all(db, current_user, page, limit)
+    return await controller.get_all(db, current_user, page, limit, date_from, date_to)
 
 @router.get("/my")
 async def get_my_alerts(

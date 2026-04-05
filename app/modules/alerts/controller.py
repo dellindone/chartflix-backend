@@ -1,3 +1,4 @@
+from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -6,9 +7,16 @@ from app.schemas.alert import CreateAlertRequest, AlertResponse, UpdateAlertRequ
 from app.utils.pagination import get_pagination_params, paginate
 from app.utils.response import success
 
-async def get_all(db: AsyncSession, current_user: User, page: int, limit: int):
+async def get_all(
+    db: AsyncSession,
+    current_user: User,
+    page: int,
+    limit: int,
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
     skip = get_pagination_params(page=page, limit=limit)
-    alerts, total = await alert_service.get_all_published(db, skip, limit)
+    alerts, total = await alert_service.get_all_published(db, skip, limit, date_from, date_to)
     data = [AlertResponse.model_validate(a).model_dump() for a in alerts]
     return success(data=data, message="Alerts Fetched", meta=paginate(total, page, limit))
 

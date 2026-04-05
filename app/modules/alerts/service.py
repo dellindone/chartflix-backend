@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as aioredis
 
@@ -12,8 +12,15 @@ from app.schemas.alert import CreateAlertRequest, UpdateAlertRequest
 from app.core.websocket import ALERT_CHANNEL
 
 class AlertService:
-    async def get_all_published(self, db: AsyncSession, skip: int, limit: int):
-        alerts, total = await alert_repo.get_published(db, skip, limit)
+    async def get_all_published(
+        self,
+        db: AsyncSession,
+        skip: int,
+        limit: int,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ):
+        alerts, total = await alert_repo.get_published(db, skip, limit, date_from, date_to)
         return alerts, total
 
     async def get_my_alert(self, db: AsyncSession, analyst_id: str):
@@ -42,9 +49,11 @@ class AlertService:
             message = json.dumps({
                 "symbol": alert.symbol,
                 "contract": alert.contract,
+                "category": alert.category.value if hasattr(alert.category, "value") else alert.category,
                 "direction": alert.direction.value if hasattr(alert.direction, "value") else alert.direction,
                 "ltp": alert.ltp,
                 "option_ltp": alert.option_ltp,
+                "lot_size": alert.lot_size,
                 "investment": alert.investment,
             })
             redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True, ssl_cert_reqs=None)

@@ -1,3 +1,4 @@
+from datetime import date, datetime, time, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 
@@ -9,8 +10,20 @@ class AlertRepository:
         result = await db.execute(select(Alert).where(Alert.id == alert_id))
         return result.scalar_one_or_none()
 
-    async def get_published(self, db: AsyncSession, skip: int=0, limit: int=20) -> tuple[list[Alert], int]:
-        query = select(Alert).where(Alert.status == AlertStatus.ACTIVE).order_by(desc(Alert.published_at))
+    async def get_published(
+        self,
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 20,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> tuple[list[Alert], int]:
+        conditions = [Alert.status == AlertStatus.ACTIVE]
+        if date_from:
+            conditions.append(Alert.published_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+        if date_to:
+            conditions.append(Alert.published_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
+        query = select(Alert).where(*conditions).order_by(desc(Alert.published_at))
         result = await db.execute(query.offset(skip).limit(limit))
         count = await db.execute(select(func.count()).select_from(query.subquery()))
         return result.scalars().all(), count.scalar()
